@@ -5,8 +5,7 @@
 *made by [CJ](https://github.com/vssrcj)*
 
 ---
-
-
+![Final Result Gif](./result.gif)
 ---
 Overview
 ---
@@ -20,9 +19,7 @@ The goals / steps of this project are the following:
 * Run your pipeline on a video stream (start with the test_video.mp4 and later implement on full project_video.mp4) and create a heat map of recurring detections frame by frame to reject outliers and follow detected vehicles.
 * Estimate a bounding box for vehicles detected.
 
-## Loading data
 
-Thousands of 64x64 car and non-car images are loaded from [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [non-vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) respectively, in order to train the classifier.
 
 ## Classifier
 
@@ -32,9 +29,14 @@ Combines each color channel in RGB into a histogram as in `get_color_histogram`.
 It works most effictive if the number of bins is set to **64**, and the bins range to **(0, 256)**.
 
 Result of Car Color Histogram:
-<div></div>
+<div>
+     <img src="/readme_images/histogram_cars.png" height="300">
+</div>
 
-Result of Non Car Color Histogram
+Result of Non Car Color Histogram:
+<div>
+     <img src="/readme_images/histogram_non_cars.png" height="300">
+</div>
 
 ### Spatial Features
 The image can be converted into any color, and then transformed into a feature vector, as seen in `bin_spatial`.
@@ -42,10 +44,14 @@ The image can be converted into any color, and then transformed into a feature v
 The best result is achieved when the color space is set to **YCrCb** and the spatial size to **(32, 32)**.
 
 Result of Car Color Spatial Features:
-<div></div>
+<div>
+     <img src="/readme_images/color_spaces_cars.png" height="300">
+</div>
 
 Result of Non Car Color Spatial Features:
-<div></div>
+<div>
+     <img src="/readme_images/color_spaces_non_cars.png" height="300">
+</div>
 
 ### Hog Features
 Using the hog function from the scikit-image module, a histogram is returned as in `get_hog_features`.
@@ -53,7 +59,96 @@ Using the hog function from the scikit-image module, a histogram is returned as 
 The best result is achieved when the orient is **10**, the pixels per cell **8**, and the cells per block **2**.
 
 Result of Car vs Non Car HOG:
-<div></div>
+<div>
+     <img src="/readme_images/hog.png" height="300">
+</div>
+
+## Extract Features
+Combine the color histogram, the spatial features and the hog features of each image, and normalize it, as seen in `single_img_features`:
+<div>
+     <img src="/readme_images/features.png" height="300">
+</div>
+
+The car, and non car features are then stacked to get the features vectors that are fed to the classifier for training, as in `get_scaled_features`.
+
+## Classifier
+
+### Loading data
+
+Thousands of 64x64 car and non-car images are loaded from [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [non-vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) respectively.
+
+### Training
+A Linear SVC is used to train the classifier, as in `train`
+80% of the data is used for training, 20% for validation.
+
+A test accuracy of 98.96% is achieved.
+
+## Sliding Windows
+In order to detect cars on a image, the classifier will run on multiple *windows* of an image.  `slide_window` is how the windows are made:
+
+3 sets of sliding windows are used:
+**Small**
+<div>
+     <img src="/readme_images/small_windows.png" height="300">
+</div>
+
+**Medium**
+<div>
+     <img src="/readme_images/medium_windows.png" height="300">
+</div>
+
+**Large**
+<div>
+     <img src="/readme_images/large_windows.png" height="300">
+</div>
+
+## Finding matching windows.
+Run the classifier on each window.  If it is a match to a car, a box will be drawn around it, as in `search_windows`:
+
+<div>
+     <img src="/readme_images/search_windows.png" height="300">
+</div>
+
+## Applying heatmap
+So far it does a good job of detecting cars, but it also detects a lot of false positives.
+
+Applying a heatmap, as seen in `get_fitted_boxes` mitigates this issue, plus it allows to draw a nice single box around a detection.
+
+The heatmap is made by overlapping the detected boxes.  Only if there are at least one overlap of detected boxes, then it will count as a detection:
+
+<div>
+     <img src="/readme_images/heatmap.png" height="300">
+</div>
+
+## Finding cars.
+A video is then analyzed frame by frame in `find_boxes`.
+
+Each frame (image) is basically passed to `get_fitted_boxes` to retrieved the boxes (detections).  These boxes are then drawn on the frame.
+
+---
+The process works, but the detections are jittery (moves to much between frames), some false positives persist, and there are also false negatives (cars are not detected between frames).
+
+These issues are solved by keeping a history of detections.
+Only if at least 3 out of the last 5 detections are within 30 pixels of the subsequent detections, then it counts as a valid detection.
+
+Meaning if there is a once off detection, it won't count.  If there are some dropped detections, there is a buffer of 2 frames, where the previous frame's detection will be used.
+The average of the detections are used, which helps smooths the box.
+
+The result can be seen in:
+
+<a href="/result.mp4">video.mp4</a>.
+
+### Problems faced.
+* Some false positives remains.  The heatmap threshold can be raised, the history count can be raised, or the buffer can be lowered.  All of this will raise the risk of false negatives though.
+* The box surrounding a car are skewed sometimes.  Not allowing a box's width to be less than its height helps with this.
+
+### Possible improvements.
+It is an expensive procedure to detect cars, because of all the windows that are analyzed.
+This can be optimized by:
+* Limiting the search windows to less areas.
+* Focusing the searching to areas around previously detected boxes.
+* Divide the search areas on the images between frames.
+
 
 [//]: # (Image References)
 [image1]: ./examples/car_not_car.png
