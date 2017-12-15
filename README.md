@@ -59,9 +59,9 @@ Result of Non Car Color Spatial Features:
 </div>
 
 ### 3. Hog Features.
-Using the hog function from the **scikit-image** module, a histogram is returned in the `get_hog_features` function.
+Using the hog function from the *scikit-image* module, a histogram is returned in the `get_hog_features` function.
 
-The best result is achieved when the orient is **10**, the pixels per cell **8**, and the cells per block **2**.
+The best result are achieved (after some experimentation) when the orient is **10**, the pixels per cell **8**, and the cells per block **2**.
 
 Result of Car vs Non Car HOG:
 <div>
@@ -69,7 +69,7 @@ Result of Car vs Non Car HOG:
 </div>
 
 ### Feature composition.
-`single_img_features` combines the color histogram, the spatial features and the hog features of each image, and then normalize it:
+`single_img_features` combines the color histogram, the spatial features and the hog features of each image.  This data is then normalized and then scaled using the `StandardScaler` from *scikit-preprocesing*.
 
 <div>
      <img src="/readme_images/features.png" height="200">
@@ -84,7 +84,7 @@ Result of Car vs Non Car HOG:
 Thousands of 64x64 car and non-car images are loaded from [vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/vehicles.zip) and [non-vehicle](https://s3.amazonaws.com/udacity-sdc/Vehicle_Tracking/non-vehicles.zip) respectively.
 
 ### Training.
-`train` uses a Linear SVC is used to train the classifier.
+`train` uses a `LinearSVC` from *scikit-svm* to train the classifier.
 
 **80%** of the data is used for training, **20%** for validation.
 
@@ -94,6 +94,7 @@ A test accuracy of *98.96%* is achieved.
 In order to detect cars on a image, the classifier will run on multiple *windows* of an image.  `slide_window` is how the windows are made:
 
 3 sets of sliding windows are used:
+
 **Small**
 <div>
      <img src="/readme_images/small_windows.png" height="300">
@@ -121,7 +122,7 @@ So far it does a good job of detecting cars, but it also detects a lot of false 
 
 `get_fitted_boxes` mitigates this issue by applying a heatmap.  The heatap also allows to draw a nice single box around a detection.
 
-The heatmap is made by overlapping the detected boxes.  Then a box will be drawn only where **2** boxes overlap:
+The heatmap is made by overlapping the detected boxes.  A box will then only be drawn where **2** other boxes overlap:
 
 <div>
      <img src="/readme_images/heatmap.png" height="300">
@@ -130,14 +131,15 @@ The heatmap is made by overlapping the detected boxes.  Then a box will be drawn
 ## Finding cars.
 A video is then analyzed frame by frame in `find_boxes`.
 
-Each frame (image) is passed to `get_fitted_boxes` to retrieved the detected cars (boxes).  These boxes are then drawn on the frame.
+Each frame (image) is passed to `get_fitted_boxes` to retrieved the detected cars (the single box surrounding a car).  These boxes are then drawn on the stream of images to produce the resulting video.
 
 Simply processing each frame in isolation works, but it has some issues:
 * The detected boxes are jittery (moves to much between frames).
 * Some false positives persist.
 * There are also false negatives (the boxes around cars vanish between frames).
 
-These issues are solved by keeping a history of detections / boxes:
+These issues are solved by keeping a history of the detections / boxes:
+
 Only if at least **3** out of the last **5** boxes around a car are within **30** pixels of a previous box, then it counts as a valid detection.
 
 This means that:
@@ -149,14 +151,14 @@ The result can be seen in:
 
 <a href="/result.mp4">video.mp4</a>.
 
-### Problems faced.
-* Some false positives remains.  The heatmap threshold can be raised, the history count can be raised, or the history buffer can be lowered.  All of this will raise the risk of false negatives though.
-* The box surrounding a car are skewed sometimes.  Not allowing a box's width to be less than its height helps with this.
+## Problems faced.
+* Some false positives remains.  The heatmap threshold can be raised, the history count can be raised, or the history buffer can be lowered.  All of this will raise the risk of not detected an actual car though.
+* The boxes surrounding the car are not fitted well.  Not allowing a box's width to be less than its height helps with this.
 
-### Possible improvements.
+## Possible improvements.
 Because of the amount of windows that needs to be analyzed, it is an expensive procedure to detect the cars.
 
 This can be optimized by:
-* Limiting the search windows to less areas of the image.
-* Focusing the searching to areas around previously detected boxes.
-* Divide the search areas on the image between frames.
+* Focusing the searching to areas around previously detected boxes.  Since a history of detections already exist, this won't be too difficult.  A detection is more likely to occur around a previous detection then on another part of the image.
+* Then the rest of the image can only be scanned cursory with a low heatmap threshold to detect possible "new" cars.
+* Subsequent frames can also scan different sections of the image.  For example, frames can alternate by scanning the left side of the image, then the right.
